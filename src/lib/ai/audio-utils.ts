@@ -10,6 +10,7 @@ const PCM_FORMAT = 1;
 const IEEE_FLOAT_FORMAT = 3;
 const EXTENSIBLE_FORMAT = 0xFFFE;
 const DEFAULT_DECODE_TIMEOUT_MS = 70_000;
+const AUDIO_CLASSIFIER_MODEL = require('../../../assets/models/yamnet_bracking_classifier.tflite') as number;
 
 type DecodedAudio = {
   samples: Float32Array;
@@ -213,10 +214,7 @@ export function preprocessDecodedAudio(
 }
 
 export async function loadAudioClassifierModel(): Promise<TensorflowModel> {
-  return loadTensorflowModel(
-    require('../assets/models/yamnet_bracking_classifier.tflite'),
-    [],
-  );
+  return loadTensorflowModel(AUDIO_CLASSIFIER_MODEL, []);
 }
 
 export function runAudioInference(

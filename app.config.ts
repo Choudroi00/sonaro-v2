@@ -92,6 +92,7 @@ const plugins: ExpoConfig['plugins'] = [
       enableBackgroundRecording: false,
     },
   ],
+  'react-native-fast-tflite',
   'expo-document-picker',
   'expo-localization',
   'expo-router',

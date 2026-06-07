@@ -3,7 +3,9 @@ const { withUniwindConfig } = require('uniwind/metro');
 
 const config = getDefaultConfig(__dirname);
 
-config.resolver.assetExts.push('tflite');
+if (!config.resolver.assetExts.includes('tflite')) {
+  config.resolver.assetExts.push('tflite');
+}
 
 module.exports = withUniwindConfig(config, {
   cssEntryFile: './src/global.css',

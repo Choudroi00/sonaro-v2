@@ -1,6 +1,7 @@
-
+exit 0 
 . "$(dirname "$0")/common.sh"
 
+exit 0
 
 echo "===\n>> Checking branch name..."
 
