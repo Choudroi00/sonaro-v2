@@ -8,7 +8,7 @@ import type { ModelClassificationResult } from './types';
 
 const LABELS = ['low_oil', 'normal_engine_idle', 'power_steering', 'serpentine_belt'] as const;
 
-const MODEL = require('../../../assets/models/idle_state_classifier.tflite') as number;
+const MODEL = require('../../../../assets/models/idle_state_classifier.tflite') as number;
 
 let loadedModel: TensorflowModel | null = null;
 

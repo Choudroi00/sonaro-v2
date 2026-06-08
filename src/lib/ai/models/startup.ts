@@ -8,7 +8,7 @@ import type { ModelClassificationResult } from './types';
 
 const LABELS = ['bad_ignition', 'dead_battery', 'normal_engine_startup'] as const;
 
-const MODEL = require('../../../assets/models/startup_state_classifier.tflite') as number;
+const MODEL = require('../../../../assets/models/startup_state_classifier.tflite') as number;
 
 let loadedModel: TensorflowModel | null = null;
 

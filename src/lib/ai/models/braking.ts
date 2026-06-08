@@ -8,7 +8,7 @@ import type { ModelClassificationResult } from './types';
 
 const LABELS = ['normal', 'worn_out'] as const;
 
-const MODEL = require('../../../assets/models/yamnet_bracking_classifier.tflite') as number;
+const MODEL = require('../../../../assets/models/yamnet_bracking_classifier.tflite') as number;
 
 let loadedModel: TensorflowModel | null = null;
 
