@@ -1,0 +1,84 @@
+name: Runner Android Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        required: true
+        default: staging
+        type: choice
+        options:
+          - development
+          - staging
+          - preview
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-android-build-${{ github.workflow }}-${{ github.ref }}-${{ inputs.profile }}
+  cancel-in-progress: false
+
+jobs:
+  build-android:
+    name: Build Android (${{ inputs.profile }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CI: true
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || vars.EXPO_PUBLIC_API_URL }}
+      EAS_LOCAL_BUILD_SKIP_CLEANUP: 1
+      EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ github.workspace }}/build-artifacts
+
+    steps:
+      - name: Check required configuration
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "Missing EXPO_TOKEN secret. Create one from https://expo.dev/settings/access-tokens and add it to this repository."
+            exit 1
+          fi
+
+          if [ -z "$EXPO_PUBLIC_API_URL" ]; then
+            echo "Missing EXPO_PUBLIC_API_URL. Add it as a repository secret or variable."
+            exit 1
+          fi
+
+      - name: Checkout project repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node + PNPM + install deps
+        uses: ./.github/actions/setup-node-pnpm-install
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Generate Android native project
+        run: pnpm prebuild:${{ inputs.profile }}
+
+      - name: Build Android on runner
+        run: eas build --local --platform android --profile ${{ inputs.profile }} --non-interactive
+
+      - name: Upload Android build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ inputs.profile }}-${{ github.run_number }}
+          path: build-artifacts/**/*
+          if-no-files-found: error
+          retention-days: 14
