@@ -3,14 +3,12 @@ import type { TensorflowModel } from 'react-native-fast-tflite';
 
 import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { File } from 'expo-file-system';
-import { loadTensorflowModel } from 'react-native-fast-tflite';
 
 const MODEL_SAMPLE_RATE = 16_000;
 const PCM_FORMAT = 1;
 const IEEE_FLOAT_FORMAT = 3;
 const EXTENSIBLE_FORMAT = 0xFFFE;
 const DEFAULT_DECODE_TIMEOUT_MS = 70_000;
-const AUDIO_CLASSIFIER_MODEL = require('../../../assets/models/yamnet_bracking_classifier.tflite') as number;
 
 type DecodedAudio = {
   samples: Float32Array;
@@ -48,12 +46,6 @@ type DecodedAudioAccumulator = {
   chunks: Float32Array[];
   frameCount: number;
   latestStatus: AudioStatus | null;
-};
-
-export type AudioClassificationResult = {
-  label: string;
-  score: number;
-  rawScores: number[];
 };
 
 export type AudioPreprocessOptions = {
@@ -213,18 +205,10 @@ export function preprocessDecodedAudio(
   return normalize ? normalizeSamples(finiteSamples) : finiteSamples;
 }
 
-export async function loadAudioClassifierModel(): Promise<TensorflowModel> {
-  return loadTensorflowModel(AUDIO_CLASSIFIER_MODEL, []);
-}
-
-export function runAudioInference(
+export function runInference(
   model: TensorflowModel,
   preprocessedAudio: Float32Array,
 ): Float32Array {
-  /**
-   * react-native-fast-tflite accepts TypedArray / ArrayBuffer inputs.
-   * The model input is a raw waveform: Float32Array [samples].
-   */
   const outputs = model.runSync([float32ArrayToArrayBuffer(preprocessedAudio)]);
 
   if (!outputs || outputs.length === 0) {
@@ -232,31 +216,6 @@ export function runAudioInference(
   }
 
   return new Float32Array(outputs[0]);
-}
-
-/**
- * Stub for now.
- * Later, replace labels with your LabelEncoder class order.
- */
-export function classifyAudioOutput(output: Float32Array): AudioClassificationResult {
-  const rawScores = Array.from(output);
-
-  return {
-    label: 'TODO_CLASS_LABEL',
-    score: Math.max(...rawScores),
-    rawScores,
-  };
-}
-
-export async function classifyAudio(
-  model: TensorflowModel,
-  audio: AudioPreprocessInput,
-  options: AudioPreprocessOptions & AudioDecodeOptions = {},
-): Promise<AudioClassificationResult> {
-  const input = await preprocessAudio(audio, options);
-  const output = runAudioInference(model, input);
-
-  return classifyAudioOutput(output);
 }
 
 async function readAudioBytes(input: AudioUriInput | AudioBytesInput): Promise<Uint8Array> {

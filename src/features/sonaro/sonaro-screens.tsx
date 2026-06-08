@@ -10,7 +10,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useRouter } from 'expo-router';
 import * as React from 'react';
 import {
   Alert,
@@ -41,14 +41,12 @@ import Svg, {
 
 import brandLogoMark from '@/assets/brand/asset_brand_logo_mark.png';
 import authHeroIllustration from '@/assets/illustrations/illustration_auth_hero.png';
-import attentionCarIllustration from '@/assets/illustrations/illustration_car_engine_attention.png';
-import normalCarIllustration from '@/assets/illustrations/illustration_car_front_normal.png';
 import gearsLoadingIllustration from '@/assets/illustrations/illustration_gears_loading.png';
 import onboardingIntroIllustration from '@/assets/illustrations/illustration_onboarding_intro.png';
-import warningIllustration from '@/assets/illustrations/illustration_warning_triangle_sparkles.png';
 import { FocusAwareStatusBar, Image } from '@/components/ui';
 import { useAudioAnalysisStore } from '@/features/sonaro/use-audio-analysis-store';
-import { classifyAudio, loadAudioClassifierModel } from '@/lib/ai/audio-utils';
+import { classifyBraking, classifyIdle, classifyStartup } from '@/lib/ai/models';
+import type { ModelClassificationResult } from '@/lib/ai/models';
 
 const MAX_RECORDING_SECONDS = 60;
 
@@ -829,25 +827,24 @@ function ControlButton({
 
 export function AnalysisLoadingScreen() {
   const router = useRouter();
-  const { result } = useLocalSearchParams<{ result?: string }>();
   const analysisInput = useAudioAnalysisStore(state => state.input);
+  const setResults = useAudioAnalysisStore(state => state.setResults);
   const { x, y, s } = useScale(440, 956);
 
   React.useEffect(() => {
     let cancelled = false;
 
     const runAnalysis = async () => {
-      let target = getAnalysisTarget(result);
-
       try {
         if (analysisInput) {
-          const model = await loadAudioClassifierModel();
-          const classification = await classifyAudio(
-            model,
-            { uri: analysisInput.uri },
-            { durationMillis: analysisInput.durationMillis },
-          );
-          target = getAnalysisTarget(classification.label);
+          const audioInput = { uri: analysisInput.uri };
+          const decodeOpts = { durationMillis: analysisInput.durationMillis };
+
+          const braking = await classifyBraking(audioInput, decodeOpts);
+          const startup = await classifyStartup(audioInput, decodeOpts);
+          const idle = await classifyIdle(audioInput, decodeOpts);
+
+          setResults([braking, startup, idle]);
         }
       }
       catch (error) {
@@ -855,7 +852,7 @@ export function AnalysisLoadingScreen() {
       }
 
       if (!cancelled) {
-        router.replace(target);
+        router.replace('/analysis-results');
       }
     };
 
@@ -867,7 +864,7 @@ export function AnalysisLoadingScreen() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [analysisInput, result, router]);
+  }, [analysisInput, router, setResults]);
 
   return (
     <View style={styles.analysisRoot}>
@@ -909,18 +906,6 @@ export function AnalysisLoadingScreen() {
   );
 }
 
-function getAnalysisTarget(result?: string): Href {
-  if (result === 'normal') {
-    return '/engine-status-normal';
-  }
-
-  if (result === 'attention') {
-    return '/engine-status-attention';
-  }
-
-  return '/multiple-issues';
-}
-
 function LoadingWaveform({ style }: { style: object }) {
   const progress = useSharedValue(0);
 
@@ -957,91 +942,6 @@ function LoadingWaveform({ style }: { style: object }) {
   );
 }
 
-export function EngineStatusNormalScreen() {
-  const { x, y, s } = useScale(440, 956);
-
-  return (
-    <View style={styles.analysisRoot}>
-      <HiddenChrome />
-      <Image
-        accessibilityLabel="normal-engine-car-illustration"
-        contentFit="contain"
-        source={normalCarIllustration}
-        style={[
-          styles.absolute,
-          {
-            height: y(246),
-            left: (x(440) - x(302)) / 2,
-            top: y(213),
-            width: x(302),
-          },
-        ]}
-      />
-      <TechText
-        color={colors.white}
-        lineHeight={s(34)}
-        size={s(26)}
-        weight="700"
-        style={[styles.absoluteCenter, { top: y(526) }]}
-      >
-        Engine Status
-      </TechText>
-      <StatusBadge
-        backgroundColor="#00792B"
-        label="Normal"
-        style={{ left: (x(440) - x(301)) / 2, top: y(592), width: x(301) }}
-      />
-      <TechText
-        color={colors.yellow}
-        lineHeight={s(27)}
-        size={s(21)}
-        weight="600"
-        style={[styles.absoluteCenter, { top: y(699), width: x(270) }]}
-      >
-        {'No abnormal engine\nsounds detected.'}
-      </TechText>
-    </View>
-  );
-}
-
-export function EngineStatusAttentionScreen() {
-  const { x, y, s } = useScale(440, 956);
-
-  return (
-    <View style={styles.attentionRoot}>
-      <HiddenChrome />
-      <Image
-        accessibilityLabel="attention-engine-car-illustration"
-        contentFit="contain"
-        source={attentionCarIllustration}
-        style={[
-          styles.absolute,
-          {
-            height: y(342),
-            left: (x(440) - x(302)) / 2,
-            top: y(173),
-            width: x(302),
-          },
-        ]}
-      />
-      <TechText
-        color={colors.white}
-        lineHeight={s(34)}
-        size={s(26)}
-        weight="700"
-        style={[styles.absoluteCenter, { top: y(555) }]}
-      >
-        Engine Status
-      </TechText>
-      <StatusBadge
-        backgroundColor={colors.orange}
-        label="Attention Required"
-        style={{ left: (x(440) - x(301)) / 2, top: y(624), width: x(301) }}
-      />
-    </View>
-  );
-}
-
 function StatusBadge({
   backgroundColor,
   label,
@@ -1049,7 +949,7 @@ function StatusBadge({
 }: {
   backgroundColor: string;
   label: string;
-  style: object;
+  style?: object;
 }) {
   return (
     <View style={[styles.statusBadge, { backgroundColor }, style]}>
@@ -1060,133 +960,111 @@ function StatusBadge({
   );
 }
 
-export function MultipleIssuesScreen() {
-  const router = useRouter();
-  const { x, y, s } = useScale(440, 956);
+function ScoreBar({ label, score }: { label: string; score: number }) {
+  const pct = Math.round(score * 100);
+  const isNormal = label === 'normal' || label === 'normal_engine_startup' || label === 'normal_engine_idle';
+  const barColor = isNormal ? '#00792B' : colors.orange;
 
   return (
-    <View style={styles.multipleRoot}>
-      <HiddenChrome />
-      <View style={styles.multipleGradient} />
-      <Image
-        accessibilityLabel="warning-illustration"
-        contentFit="contain"
-        source={warningIllustration}
-        style={[
-          styles.absolute,
-          {
-            height: y(131),
-            left: (x(440) - x(142)) / 2,
-            top: y(83),
-            width: x(142),
-          },
-        ]}
-      />
+    <View style={styles.scoreBarRow}>
       <TechText
-        color={colors.warningRed}
-        lineHeight={s(26)}
-        size={s(20)}
-        weight="600"
-        style={[styles.absoluteCenter, { top: y(229) }]}
-      >
-        Multiple issues found
-      </TechText>
-      <TechText
-        color={colors.instructionYellow}
-        lineHeight={s(26)}
-        size={s(19)}
+        align="left"
+        color={colors.white}
+        lineHeight={20}
+        size={14}
         weight="500"
-        style={[styles.absoluteCenter, { top: y(284) }]}
+        style={{ flex: 1 }}
       >
-        Select one to view instructions
+        {label.replace(/_/g, ' ')}
       </TechText>
-      {[349, 464, 579].map((top, index) => (
-        <IssueCard
-          key={top}
-          onPress={() => router.push('/engine-status-attention')}
-          style={{
-            height: y(76),
-            left: x(16),
-            right: x(16),
-            top: y(top),
-          }}
-          title={['Belt noise', 'Knocking sound', 'Exhaust leak'][index] ?? 'Belt noise'}
-        />
-      ))}
-      <RouteButton
-        backgroundColor="#0F4778"
-        label="Record Again"
-        onPress={() => router.replace('/recording')}
-        style={[
-          styles.absolute,
-          {
-            height: y(56),
-            left: x(16),
-            right: x(16),
-            top: y(692),
-          },
-        ]}
-      />
+      <View style={styles.scoreBarTrack}>
+        <View style={[styles.scoreBarFill, { backgroundColor: barColor, width: `${pct}%` }]} />
+      </View>
+      <TechText
+        color={colors.white}
+        lineHeight={20}
+        size={13}
+        weight="600"
+        style={{ width: 40, textAlign: 'right' }}
+      >
+        {pct}%
+      </TechText>
     </View>
   );
 }
 
-function IssueCard({
-  onPress,
-  style,
-  title,
-}: {
-  onPress: () => void;
-  style: object;
-  title: string;
-}) {
+function ModelSection({ result }: { result: ModelClassificationResult }) {
+  const isNormal = result.label === 'normal' || result.label === 'normal_engine_startup' || result.label === 'normal_engine_idle';
+  const badgeColor = isNormal ? '#00792B' : colors.orange;
+
+  const sectionTitle = result.model === 'braking'
+    ? 'Braking'
+    : result.model === 'startup'
+      ? 'Startup'
+      : 'Idle';
+
   return (
-    <Pressable
-      accessibilityLabel={title}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.issueCard,
-        { opacity: pressed ? 0.88 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] },
-        style,
-      ]}
-    >
+    <View style={styles.modelSection}>
       <TechText
         align="left"
-        color={colors.white}
+        color={colors.cyan}
         lineHeight={24}
         size={18}
         weight="700"
-        style={styles.issueTitle}
+        style={styles.modelSectionTitle}
       >
-        {title}
+        {sectionTitle}
       </TechText>
-      <ScoreRing />
-    </Pressable>
+      <StatusBadge
+        backgroundColor={badgeColor}
+        label={result.label.replace(/_/g, ' ')}
+        style={styles.modelSectionBadge}
+      />
+      {result.labels.map((lbl, idx) => (
+        <ScoreBar key={lbl} label={lbl} score={result.rawScores[idx] ?? 0} />
+      ))}
+    </View>
   );
 }
 
-function ScoreRing() {
+export function AnalysisResultsScreen() {
+  const router = useRouter();
+  const results = useAudioAnalysisStore(state => state.results);
+  const { x, y, s } = useScale(440, 956);
+
   return (
-    <View style={styles.scoreRing}>
-      <Svg height={50} viewBox="0 0 50 50" width={50}>
-        <Circle cx={25} cy={25} fill="#7A3FF2" r={22} />
-        <Circle cx={25} cy={25} fill="transparent" r={18} stroke="#F7F13A" strokeWidth={5} />
-        <Circle
-          cx={25}
-          cy={25}
-          fill="transparent"
-          r={18}
-          stroke="#FF4D9D"
-          strokeDasharray="70 113"
-          strokeLinecap="round"
-          strokeWidth={5}
-          transform="rotate(-90 25 25)"
+    <View style={styles.analysisRoot}>
+      <HiddenChrome />
+      <ScrollView
+        contentContainerStyle={{
+          paddingBottom: y(40),
+          paddingHorizontal: x(16),
+          paddingTop: y(60),
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <TechText
+          color={colors.white}
+          lineHeight={s(34)}
+          size={s(26)}
+          weight="700"
+          style={{ textAlign: 'center', marginBottom: y(24) }}
+        >
+          Analysis Results
+        </TechText>
+        {results.map(r => (
+          <ModelSection key={r.model} result={r} />
+        ))}
+        <RouteButton
+          backgroundColor="#0F4778"
+          label="Record Again"
+          onPress={() => router.replace('/recording')}
+          style={{
+            height: y(56),
+            marginTop: y(24),
+          }}
         />
-      </Svg>
-      <TechText color={colors.white} lineHeight={18} size={15} weight="700" style={styles.scoreText}>
-        60
-      </TechText>
+      </ScrollView>
     </View>
   );
 }
@@ -1252,11 +1130,6 @@ const styles = StyleSheet.create({
   },
   analysisRoot: {
     backgroundColor: colors.analysisBlue,
-    flex: 1,
-    overflow: 'hidden',
-  },
-  attentionRoot: {
-    backgroundColor: colors.red,
     flex: 1,
     overflow: 'hidden',
   },
@@ -1359,26 +1232,6 @@ const styles = StyleSheet.create({
     left: -2,
     top: 65,
   },
-  issueCard: {
-    alignItems: 'center',
-    backgroundColor: colors.orange,
-    borderRadius: 7,
-    elevation: 8,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingLeft: 27,
-    paddingRight: 18,
-    position: 'absolute',
-    shadowColor: '#4A2615',
-    shadowOffset: { height: 7, width: 0 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-  },
-  issueTitle: {
-    textShadowColor: 'rgba(0,0,0,0.35)',
-    textShadowOffset: { height: 2, width: 1 },
-    textShadowRadius: 3,
-  },
   languageSelector: {
     alignItems: 'center',
     flexDirection: 'row',
@@ -1391,18 +1244,18 @@ const styles = StyleSheet.create({
     gap: 6,
     justifyContent: 'center',
   },
-  multipleGradient: {
-    backgroundColor: colors.orange,
-    bottom: 0,
-    height: '42%',
-    left: 0,
-    position: 'absolute',
-    right: 0,
+  modelSection: {
+    marginBottom: 20,
   },
-  multipleRoot: {
-    backgroundColor: colors.white,
-    flex: 1,
-    overflow: 'hidden',
+  modelSectionBadge: {
+    alignSelf: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+    position: 'relative',
+  },
+  modelSectionTitle: {
+    marginBottom: 8,
   },
   recordingMeta: {
     alignItems: 'center',
@@ -1416,14 +1269,22 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
   },
-  scoreRing: {
-    alignItems: 'center',
-    height: 50,
-    justifyContent: 'center',
-    width: 50,
+  scoreBarFill: {
+    borderRadius: 4,
+    height: '100%',
   },
-  scoreText: {
-    position: 'absolute',
+  scoreBarRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    marginBottom: 6,
+  },
+  scoreBarTrack: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 4,
+    flex: 2,
+    height: 10,
+    marginHorizontal: 8,
+    overflow: 'hidden',
   },
   splashBrand: {
     alignItems: 'center',
@@ -1436,7 +1297,6 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     height: 63,
     justifyContent: 'center',
-    position: 'absolute',
   },
   waveform: {
     alignItems: 'center',

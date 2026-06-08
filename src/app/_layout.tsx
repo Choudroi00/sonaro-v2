@@ -43,9 +43,7 @@ export default function RootLayout() {
         <Stack.Screen name="how-to-use" options={{ headerShown: false }} />
         <Stack.Screen name="recording" options={{ headerShown: false }} />
         <Stack.Screen name="analysis-loading" options={{ headerShown: false }} />
-        <Stack.Screen name="engine-status-normal" options={{ headerShown: false }} />
-        <Stack.Screen name="engine-status-attention" options={{ headerShown: false }} />
-        <Stack.Screen name="multiple-issues" options={{ headerShown: false }} />
+        <Stack.Screen name="analysis-results" options={{ headerShown: false }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ headerShown: false }} />
