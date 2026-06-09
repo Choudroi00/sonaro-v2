@@ -14,7 +14,7 @@ let loadedModel: TensorflowModel | null = null;
 
 export async function loadBrakingModel(): Promise<TensorflowModel> {
   if (!loadedModel) {
-    loadedModel = await loadTensorflowModel(MODEL, []);
+    loadedModel = await loadTensorflowModel(MODEL);
   }
   return loadedModel;
 }

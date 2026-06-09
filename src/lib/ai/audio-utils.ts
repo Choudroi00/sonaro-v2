@@ -209,13 +209,25 @@ export function runInference(
   model: TensorflowModel,
   preprocessedAudio: Float32Array,
 ): Float32Array {
-  const outputs = model.runSync([float32ArrayToArrayBuffer(preprocessedAudio)]);
+  const outputs = model.runSync([preprocessedAudio]);
 
   if (!outputs || outputs.length === 0) {
     throw new Error('TFLite inference returned no outputs.');
   }
 
-  return new Float32Array(outputs[0]);
+  const output = outputs[0];
+
+  if (output instanceof Float32Array) {
+    return output;
+  }
+
+  const floatOutput = new Float32Array(output.length);
+
+  for (let i = 0; i < output.length; i++) {
+    floatOutput[i] = Number(output[i] ?? 0);
+  }
+
+  return floatOutput;
 }
 
 async function readAudioBytes(input: AudioUriInput | AudioBytesInput): Promise<Uint8Array> {
@@ -720,13 +732,6 @@ function isHttpUri(uri: string): boolean {
 
 function finiteOrZero(value: number): number {
   return Number.isFinite(value) ? value : 0;
-}
-
-function float32ArrayToArrayBuffer(samples: Float32Array): ArrayBuffer {
-  const buffer = new ArrayBuffer(samples.byteLength);
-  new Float32Array(buffer).set(samples);
-
-  return buffer;
 }
 
 function throwUnsupportedAudioFormat(): never {
