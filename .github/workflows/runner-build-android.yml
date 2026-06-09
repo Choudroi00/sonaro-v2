@@ -28,16 +28,8 @@ jobs:
     timeout-minutes: 90
     env:
       CI: true
-      EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || vars.EXPO_PUBLIC_API_URL }}
 
     steps:
-      - name: Check required configuration
-        run: |
-          if [ -z "$EXPO_PUBLIC_API_URL" ]; then
-            echo "Missing EXPO_PUBLIC_API_URL. Add it as a repository secret or variable."
-            exit 1
-          fi
-
       - name: Checkout project repo
         uses: actions/checkout@v4
         with:
@@ -56,7 +48,9 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Generate Android native project
-        run: pnpm prebuild:${{ inputs.profile }}
+        run: pnpm expo prebuild
+        env:
+          EXPO_PUBLIC_APP_ENV: ${{ inputs.profile }}
 
       - name: Build Android with Gradle
         run: |
