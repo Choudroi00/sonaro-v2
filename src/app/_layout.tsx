@@ -34,6 +34,13 @@ SplashScreen.setOptions({
 });
 
 export default function RootLayout() {
+  React.useEffect(() => {
+    // Hand off from the native splash to the app's custom /splash route.
+    SplashScreen.hideAsync().catch(() => {
+      // Ignore repeated hide calls during fast refresh/navigation updates.
+    });
+  }, []);
+
   return (
     <Providers>
       <Stack>

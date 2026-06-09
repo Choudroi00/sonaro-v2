@@ -46,6 +46,7 @@ import onboardingIntroIllustration from '@/assets/illustrations/illustration_onb
 import { FocusAwareStatusBar, Image } from '@/components/ui';
 import { useAudioAnalysisStore } from '@/features/sonaro/use-audio-analysis-store';
 import { classifyBraking, classifyIdle, classifyStartup } from '@/lib/ai/models';
+import { useIsFirstTime } from '@/lib/hooks';
 import type { ModelClassificationResult } from '@/lib/ai/models';
 
 const MAX_RECORDING_SECONDS = 60;
@@ -394,6 +395,7 @@ export function SplashScreen() {
 
 export function OnboardingIntroScreen() {
   const router = useRouter();
+  const [, setIsFirstTime] = useIsFirstTime();
   const { s, x, y } = useScale(447, 978);
 
   return (
@@ -431,7 +433,10 @@ export function OnboardingIntroScreen() {
       </View>
       <RouteButton
         label="Get Started"
-        onPress={() => router.replace('/auth-welcome')}
+        onPress={() => {
+          setIsFirstTime(false);
+          router.replace('/auth-welcome');
+        }}
         style={[
           styles.absolute,
           {
