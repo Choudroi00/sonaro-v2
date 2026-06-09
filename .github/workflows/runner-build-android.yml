@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       profile:
-        description: EAS build profile
+        description: Build profile
         required: true
         default: staging
         type: choice
@@ -28,19 +28,11 @@ jobs:
     timeout-minutes: 90
     env:
       CI: true
-      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
       EXPO_PUBLIC_API_URL: ${{ secrets.EXPO_PUBLIC_API_URL || vars.EXPO_PUBLIC_API_URL }}
-      EAS_LOCAL_BUILD_SKIP_CLEANUP: 1
-      EAS_LOCAL_BUILD_ARTIFACTS_DIR: ${{ github.workspace }}/build-artifacts
 
     steps:
       - name: Check required configuration
         run: |
-          if [ -z "$EXPO_TOKEN" ]; then
-            echo "Missing EXPO_TOKEN secret. Create one from https://expo.dev/settings/access-tokens and add it to this repository."
-            exit 1
-          fi
-
           if [ -z "$EXPO_PUBLIC_API_URL" ]; then
             echo "Missing EXPO_PUBLIC_API_URL. Add it as a repository secret or variable."
             exit 1
@@ -63,22 +55,25 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Setup Expo and EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
       - name: Generate Android native project
         run: pnpm prebuild:${{ inputs.profile }}
 
-      - name: Build Android on runner
-        run: eas build --local --platform android --profile ${{ inputs.profile }} --non-interactive
+      - name: Build Android with Gradle
+        run: |
+          cd android
+          chmod +x ./gradlew
+          if [ "${{ inputs.profile }}" = "production" ]; then
+            ./gradlew bundleRelease --no-daemon
+          else
+            ./gradlew assembleRelease --no-daemon
+          fi
 
       - name: Upload Android build artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-${{ inputs.profile }}-${{ github.run_number }}
-          path: build-artifacts/**/*
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+            android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
