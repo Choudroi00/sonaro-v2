@@ -49,6 +49,7 @@ export default function RootLayout() {
         <Stack.Screen name="auth-welcome" options={{ headerShown: false }} />
         <Stack.Screen name="how-to-use" options={{ headerShown: false }} />
         <Stack.Screen name="recording" options={{ headerShown: false }} />
+        <Stack.Screen name="analysis-test-chooser" options={{ headerShown: false }} />
         <Stack.Screen name="analysis-loading" options={{ headerShown: false }} />
         <Stack.Screen name="analysis-results" options={{ headerShown: false }} />
         <Stack.Screen name="(app)" options={{ headerShown: false }} />

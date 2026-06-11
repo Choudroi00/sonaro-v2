@@ -2,6 +2,7 @@ import type { AudioRecorder } from 'expo-audio';
 import type { Href } from 'expo-router';
 import type { AudioAnalysisInput } from '@/features/sonaro/use-audio-analysis-store';
 
+import type { ModelClassificationResult } from '@/lib/ai/models';
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -10,7 +11,7 @@ import {
   useAudioRecorderState,
 } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as React from 'react';
 import {
   Alert,
@@ -29,6 +30,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
+
 import Svg, {
   Circle,
   Defs,
@@ -38,7 +40,6 @@ import Svg, {
   Rect,
   Stop,
 } from 'react-native-svg';
-
 import brandLogoMark from '@/assets/brand/asset_brand_logo_mark.png';
 import authHeroIllustration from '@/assets/illustrations/illustration_auth_hero.png';
 import gearsLoadingIllustration from '@/assets/illustrations/illustration_gears_loading.png';
@@ -47,7 +48,6 @@ import { FocusAwareStatusBar, Image } from '@/components/ui';
 import { useAudioAnalysisStore } from '@/features/sonaro/use-audio-analysis-store';
 import { classifyBraking, classifyIdle, classifyStartup } from '@/lib/ai/models';
 import { useIsFirstTime } from '@/lib/hooks';
-import type { ModelClassificationResult } from '@/lib/ai/models';
 
 const MAX_RECORDING_SECONDS = 60;
 
@@ -75,6 +75,15 @@ type RecordingFlowArgs = {
   router: { replace: (href: Href) => void };
   setAnalysisInput: (input: AudioAnalysisInput) => void;
 };
+
+type DesiredAnalysisTest = 'braking' | 'startup' | 'idle';
+
+const desiredAnalysisTests: DesiredAnalysisTest[] = ['braking', 'startup', 'idle'];
+
+function parseDesiredTest(value: string | string[] | undefined): DesiredAnalysisTest | null {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return desiredAnalysisTests.find(test => test === candidate) ?? null;
+}
 
 async function pickAudioFile(): Promise<AudioAnalysisInput | null> {
   const result = await DocumentPicker.getDocumentAsync({
@@ -116,7 +125,7 @@ function useRecordingFlow({ recorder, router, setAnalysisInput }: RecordingFlowA
 
   const goToAnalysis = React.useCallback((input: AudioAnalysisInput) => {
     setAnalysisInput(input);
-    router.replace('/analysis-loading');
+    router.replace('/analysis-test-chooser');
   }, [router, setAnalysisInput]);
 
   const stopRecording = React.useCallback(async () => {
@@ -832,9 +841,11 @@ function ControlButton({
 
 export function AnalysisLoadingScreen() {
   const router = useRouter();
+  const { desiredTest: desiredTestParam } = useLocalSearchParams<{ desiredTest?: string | string[] }>();
   const analysisInput = useAudioAnalysisStore(state => state.input);
   const setResults = useAudioAnalysisStore(state => state.setResults);
   const { x, y, s } = useScale(440, 956);
+  const desiredTest = parseDesiredTest(desiredTestParam);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -845,11 +856,25 @@ export function AnalysisLoadingScreen() {
           const audioInput = { uri: analysisInput.uri };
           const decodeOpts = { durationMillis: analysisInput.durationMillis };
 
-          const braking = await classifyBraking(audioInput, decodeOpts);
-          const startup = await classifyStartup(audioInput, decodeOpts);
-          const idle = await classifyIdle(audioInput, decodeOpts);
+          if (desiredTest === 'braking') {
+            const braking = await classifyBraking(audioInput, decodeOpts);
+            setResults([braking]);
+          }
+          else if (desiredTest === 'startup') {
+            const startup = await classifyStartup(audioInput, decodeOpts);
+            setResults([startup]);
+          }
+          else if (desiredTest === 'idle') {
+            const idle = await classifyIdle(audioInput, decodeOpts);
+            setResults([idle]);
+          }
+          else {
+            const braking = await classifyBraking(audioInput, decodeOpts);
+            const startup = await classifyStartup(audioInput, decodeOpts);
+            const idle = await classifyIdle(audioInput, decodeOpts);
 
-          setResults([braking, startup, idle]);
+            setResults([braking, startup, idle]);
+          }
         }
       }
       catch (error) {
@@ -857,7 +882,11 @@ export function AnalysisLoadingScreen() {
       }
 
       if (!cancelled) {
-        router.replace('/analysis-results');
+        router.replace(
+          desiredTest
+            ? { pathname: '/analysis-results', params: { desiredTest } }
+            : '/analysis-results',
+        );
       }
     };
 
@@ -869,7 +898,7 @@ export function AnalysisLoadingScreen() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [analysisInput, router, setResults]);
+  }, [analysisInput, desiredTest, router, setResults]);
 
   return (
     <View style={styles.analysisRoot}>
@@ -992,7 +1021,8 @@ function ScoreBar({ label, score }: { label: string; score: number }) {
         weight="600"
         style={{ width: 40, textAlign: 'right' }}
       >
-        {pct}%
+        {pct}
+        %
       </TechText>
     </View>
   );
@@ -1032,10 +1062,89 @@ function ModelSection({ result }: { result: ModelClassificationResult }) {
   );
 }
 
+export function AnalysisTestChooserScreen() {
+  const router = useRouter();
+  const analysisInput = useAudioAnalysisStore(state => state.input);
+  const { x, y, s } = useScale(440, 956);
+
+  React.useEffect(() => {
+    if (!analysisInput) {
+      router.replace('/recording');
+    }
+  }, [analysisInput, router]);
+
+  const chooseTest = React.useCallback((desiredTest: DesiredAnalysisTest) => {
+    router.replace({ pathname: '/analysis-loading', params: { desiredTest } });
+  }, [router]);
+
+  return (
+    <View style={styles.analysisRoot}>
+      <HiddenChrome />
+      <ScrollView
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: 'center',
+          paddingBottom: y(40),
+          paddingHorizontal: x(24),
+          paddingTop: y(48),
+        }}
+        showsVerticalScrollIndicator={false}
+      >
+        <TechText
+          color={colors.white}
+          lineHeight={s(34)}
+          size={s(26)}
+          weight="700"
+          style={{ marginBottom: y(16) }}
+        >
+          Choose Test
+        </TechText>
+        <TechText
+          color={colors.cyan}
+          lineHeight={s(22)}
+          size={s(16)}
+          style={{ marginBottom: y(28) }}
+        >
+          Select the engine sound check to run on this audio sample.
+        </TechText>
+        <RouteButton
+          backgroundColor={colors.orange}
+          label="Braking"
+          onPress={() => chooseTest('braking')}
+          style={{ marginBottom: y(14) }}
+        />
+        <RouteButton
+          backgroundColor="#0F4778"
+          label="Startup"
+          onPress={() => chooseTest('startup')}
+          style={{ marginBottom: y(14) }}
+        />
+        <RouteButton
+          backgroundColor="#145C96"
+          label="Idle"
+          onPress={() => chooseTest('idle')}
+          style={{ marginBottom: y(24) }}
+        />
+        <RouteButton
+          backgroundColor="transparent"
+          label="Back to Recording"
+          onPress={() => router.replace('/recording')}
+          style={{ borderColor: colors.cyan, borderWidth: 1 }}
+        />
+      </ScrollView>
+    </View>
+  );
+}
+
 export function AnalysisResultsScreen() {
   const router = useRouter();
+  const { desiredTest: desiredTestParam } = useLocalSearchParams<{ desiredTest?: string | string[] }>();
   const results = useAudioAnalysisStore(state => state.results);
   const { x, y, s } = useScale(440, 956);
+  const desiredTest = parseDesiredTest(desiredTestParam);
+  const visibleResults = desiredTest
+    ? results.filter(result => result.model === desiredTest)
+    : results;
 
   return (
     <View style={styles.analysisRoot}>
@@ -1057,7 +1166,7 @@ export function AnalysisResultsScreen() {
         >
           Analysis Results
         </TechText>
-        {results.map(r => (
+        {visibleResults.map(r => (
           <ModelSection key={r.model} result={r} />
         ))}
         <RouteButton
