@@ -31,10 +31,21 @@ export async function classifyBraking(
   const rawScores = Array.from(output);
   const probabilities = toProbabilities(rawScores);
   const maxIdx = getTopScoreIndex(probabilities);
+  const label = LABELS[maxIdx] ?? 'unknown';
+
+  if (__DEV__) {
+    console.log('Braking inference', {
+      inputShape: model.inputs[0]?.shape ?? [],
+      label,
+      preprocessedLength: preprocessed.length,
+      probabilities,
+      rawScores,
+    });
+  }
 
   return {
     model: 'braking',
-    label: LABELS[maxIdx] ?? 'unknown',
+    label,
     probabilities,
     rawScores,
     score: probabilities[maxIdx] ?? 0,
