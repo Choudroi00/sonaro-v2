@@ -1056,7 +1056,7 @@ function ModelSection({ result }: { result: ModelClassificationResult }) {
         style={styles.modelSectionBadge}
       />
       {result.labels.map((lbl, idx) => (
-        <ScoreBar key={lbl} label={lbl} score={result.rawScores[idx] ?? 0} />
+        <ScoreBar key={lbl} label={lbl} score={result.probabilities[idx] ?? 0} />
       ))}
     </View>
   );

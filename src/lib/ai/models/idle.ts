@@ -1,10 +1,11 @@
 import type { TensorflowModel } from 'react-native-fast-tflite';
-import { loadTensorflowModel } from 'react-native-fast-tflite';
+import type { ModelClassificationResult } from './types';
 
 import type { AudioDecodeOptions, AudioPreprocessInput, AudioPreprocessOptions } from '@/lib/ai/audio-utils';
-import { preprocessAudio, runInference } from '@/lib/ai/audio-utils';
+import { loadTensorflowModel } from 'react-native-fast-tflite';
 
-import type { ModelClassificationResult } from './types';
+import { preprocessAudio, runInference } from '@/lib/ai/audio-utils';
+import { getTopScoreIndex, toProbabilities } from './score-utils';
 
 const LABELS = ['low_oil', 'normal_engine_idle', 'power_steering', 'serpentine_belt'] as const;
 
@@ -28,16 +29,15 @@ export async function classifyIdle(
   const output = runInference(model, preprocessed);
 
   const rawScores = Array.from(output);
-  let maxIdx = 0;
-  for (let i = 1; i < rawScores.length; i++) {
-    if (rawScores[i] > rawScores[maxIdx]) maxIdx = i;
-  }
+  const probabilities = toProbabilities(rawScores);
+  const maxIdx = getTopScoreIndex(probabilities);
 
   return {
     model: 'idle',
     label: LABELS[maxIdx] ?? 'unknown',
-    score: rawScores[maxIdx],
+    probabilities,
     rawScores,
+    score: probabilities[maxIdx] ?? 0,
     labels: LABELS,
   };
 }
