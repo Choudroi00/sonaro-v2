@@ -209,7 +209,7 @@ export function runInference(
   model: TensorflowModel,
   preprocessedAudio: Float32Array,
 ): Float32Array {
-  const outputs = model.runSync([preprocessedAudio]);
+  const outputs = model.runSync([matchModelInputLength(model, preprocessedAudio)]);
 
   if (!outputs || outputs.length === 0) {
     throw new Error('TFLite inference returned no outputs.');
@@ -228,6 +228,45 @@ export function runInference(
   }
 
   return floatOutput;
+}
+
+function matchModelInputLength(
+  model: TensorflowModel,
+  audio: Float32Array,
+): Float32Array {
+  const expectedLength = getExpectedInputLength(model.inputs[0]?.shape ?? []);
+
+  if (!expectedLength || expectedLength === audio.length) {
+    return audio;
+  }
+
+  if (expectedLength < audio.length) {
+    return audio.slice(0, expectedLength);
+  }
+
+  const padded = new Float32Array(expectedLength);
+  padded.set(audio);
+  return padded;
+}
+
+function getExpectedInputLength(shape: readonly number[]): number | null {
+  if (shape.length === 0) {
+    return null;
+  }
+
+  const variableDimensions = shape.filter(size => size <= 0);
+
+  if (variableDimensions.length > 0) {
+    return null;
+  }
+
+  const nonBatchShape = shape.length > 1 && shape[0] === 1 ? shape.slice(1) : shape;
+
+  if (nonBatchShape.length === 0) {
+    return null;
+  }
+
+  return nonBatchShape.reduce((total, size) => total * size, 1);
 }
 
 async function readAudioBytes(input: AudioUriInput | AudioBytesInput): Promise<Uint8Array> {
