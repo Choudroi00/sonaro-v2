@@ -46,7 +46,12 @@ import gearsLoadingIllustration from '@/assets/illustrations/illustration_gears_
 import onboardingIntroIllustration from '@/assets/illustrations/illustration_onboarding_intro.png';
 import { FocusAwareStatusBar, Image } from '@/components/ui';
 import { useAudioAnalysisStore } from '@/features/sonaro/use-audio-analysis-store';
-import { classifyBraking, classifyIdle, classifyStartup } from '@/lib/ai/models';
+import {
+  classifyBraking,
+  classifyIdle,
+  classifyStartup,
+  createMockClassificationResult,
+} from '@/lib/ai/models';
 import { useIsFirstTime } from '@/lib/hooks';
 
 const MAX_RECORDING_SECONDS = 60;
@@ -83,6 +88,32 @@ const desiredAnalysisTests: DesiredAnalysisTest[] = ['braking', 'startup', 'idle
 function parseDesiredTest(value: string | string[] | undefined): DesiredAnalysisTest | null {
   const candidate = Array.isArray(value) ? value[0] : value;
   return desiredAnalysisTests.find(test => test === candidate) ?? null;
+}
+
+function shouldUseMockUploadAnalysis(input: AudioAnalysisInput): boolean {
+  return input.kind === 'file';
+}
+
+async function runDesiredAnalysis(
+  desiredTest: DesiredAnalysisTest,
+  analysisInput: AudioAnalysisInput,
+): Promise<ModelClassificationResult> {
+  if (shouldUseMockUploadAnalysis(analysisInput)) {
+    return createMockClassificationResult(desiredTest, analysisInput.name);
+  }
+
+  const audioInput = { uri: analysisInput.uri };
+  const decodeOpts = { durationMillis: analysisInput.durationMillis };
+
+  if (desiredTest === 'braking') {
+    return classifyBraking(audioInput, decodeOpts);
+  }
+
+  if (desiredTest === 'startup') {
+    return classifyStartup(audioInput, decodeOpts);
+  }
+
+  return classifyIdle(audioInput, decodeOpts);
 }
 
 async function pickAudioFile(): Promise<AudioAnalysisInput | null> {
@@ -858,17 +889,13 @@ export function AnalysisLoadingScreen() {
 
       try {
         if (analysisInput) {
-          const audioInput = { uri: analysisInput.uri };
-          const decodeOpts = { durationMillis: analysisInput.durationMillis };
-
           console.log('[analysis-loading] runAnalysis:prepared-input', {
-            audioInput,
-            decodeOpts,
+            analysisInput,
           });
 
           if (desiredTest === 'braking') {
             console.log('[analysis-loading] runAnalysis:braking:before-classify');
-            const braking = await classifyBraking(audioInput, decodeOpts);
+            const braking = await runDesiredAnalysis('braking', analysisInput);
             console.log('[analysis-loading] runAnalysis:braking:after-classify', {
               braking,
             });
@@ -876,21 +903,21 @@ export function AnalysisLoadingScreen() {
             console.log('[analysis-loading] runAnalysis:braking:after-setResults');
           }
           else if (desiredTest === 'startup') {
-            const startup = await classifyStartup(audioInput, decodeOpts);
+            const startup = await runDesiredAnalysis('startup', analysisInput);
             setResults([startup]);
           }
           else if (desiredTest === 'idle') {
-            const idle = await classifyIdle(audioInput, decodeOpts);
+            const idle = await runDesiredAnalysis('idle', analysisInput);
             setResults([idle]);
           }
           else {
             console.log('[analysis-loading] runAnalysis:all:before-braking');
-            const braking = await classifyBraking(audioInput, decodeOpts);
+            const braking = await runDesiredAnalysis('braking', analysisInput);
             console.log('[analysis-loading] runAnalysis:all:after-braking', {
               braking,
             });
-            const startup = await classifyStartup(audioInput, decodeOpts);
-            const idle = await classifyIdle(audioInput, decodeOpts);
+            const startup = await runDesiredAnalysis('startup', analysisInput);
+            const idle = await runDesiredAnalysis('idle', analysisInput);
 
             setResults([braking, startup, idle]);
             console.log('[analysis-loading] runAnalysis:all:after-setResults', {
