@@ -56,7 +56,9 @@ jobs:
         run: |
           cd android
           chmod +x ./gradlew
-          if [ "${{ inputs.profile }}" = "production" ]; then
+          if [ "${{ inputs.profile }}" = "development" ]; then
+            ./gradlew assembleDebug --no-daemon
+          elif [ "${{ inputs.profile }}" = "production" ]; then
             ./gradlew bundleRelease --no-daemon
           else
             ./gradlew assembleRelease --no-daemon
@@ -67,6 +69,7 @@ jobs:
         with:
           name: android-${{ inputs.profile }}-${{ github.run_number }}
           path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
