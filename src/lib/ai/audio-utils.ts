@@ -209,25 +209,24 @@ export function runInference(
   model: TensorflowModel,
   preprocessedAudio: Float32Array,
 ): Float32Array {
-  const outputs = model.runSync([matchModelInputLength(model, preprocessedAudio)]);
+  const modelInput = matchModelInputLength(model, preprocessedAudio);
+  const inputBuffer = float32ArrayToArrayBuffer(modelInput);
+
+  console.log('[audio-utils] runInference', {
+    inputShape: model.inputs[0]?.shape ?? [],
+    inputBufferByteLength: inputBuffer.byteLength,
+    modelInputLength: modelInput.length,
+    preprocessedLength: preprocessedAudio.length,
+  });
+
+  const outputs = model.runSync([inputBuffer]);
 
   if (!outputs || outputs.length === 0) {
     throw new Error('TFLite inference returned no outputs.');
   }
 
   const output = outputs[0];
-
-  if (output instanceof Float32Array) {
-    return output;
-  }
-
-  const floatOutput = new Float32Array(output.length);
-
-  for (let i = 0; i < output.length; i++) {
-    floatOutput[i] = Number(output[i] ?? 0);
-  }
-
-  return floatOutput;
+  return arrayBufferToFloat32Array(output);
 }
 
 function matchModelInputLength(
@@ -254,6 +253,12 @@ function getExpectedInputLength(shape: readonly number[]): number | null {
     return null;
   }
 
+  // Some TFLite audio models report only the batch dimension here as [1].
+  // Treat that as variable-length 1D input instead of truncating audio to one sample.
+  if (shape.length === 1 && shape[0] === 1) {
+    return null;
+  }
+
   const variableDimensions = shape.filter(size => size <= 0);
 
   if (variableDimensions.length > 0) {
@@ -267,6 +272,15 @@ function getExpectedInputLength(shape: readonly number[]): number | null {
   }
 
   return nonBatchShape.reduce((total, size) => total * size, 1);
+}
+
+function float32ArrayToArrayBuffer(input: Float32Array): ArrayBuffer {
+  const bytes = new Uint8Array(input.buffer, input.byteOffset, input.byteLength);
+  return bytes.slice().buffer;
+}
+
+function arrayBufferToFloat32Array(buffer: ArrayBuffer): Float32Array {
+  return new Float32Array(buffer);
 }
 
 async function readAudioBytes(input: AudioUriInput | AudioBytesInput): Promise<Uint8Array> {

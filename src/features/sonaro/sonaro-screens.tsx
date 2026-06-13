@@ -851,14 +851,29 @@ export function AnalysisLoadingScreen() {
     let cancelled = false;
 
     const runAnalysis = async () => {
+      console.log('[analysis-loading] runAnalysis:start', {
+        analysisInput,
+        desiredTest,
+      });
+
       try {
         if (analysisInput) {
           const audioInput = { uri: analysisInput.uri };
           const decodeOpts = { durationMillis: analysisInput.durationMillis };
 
+          console.log('[analysis-loading] runAnalysis:prepared-input', {
+            audioInput,
+            decodeOpts,
+          });
+
           if (desiredTest === 'braking') {
+            console.log('[analysis-loading] runAnalysis:braking:before-classify');
             const braking = await classifyBraking(audioInput, decodeOpts);
+            console.log('[analysis-loading] runAnalysis:braking:after-classify', {
+              braking,
+            });
             setResults([braking]);
+            console.log('[analysis-loading] runAnalysis:braking:after-setResults');
           }
           else if (desiredTest === 'startup') {
             const startup = await classifyStartup(audioInput, decodeOpts);
@@ -869,12 +884,24 @@ export function AnalysisLoadingScreen() {
             setResults([idle]);
           }
           else {
+            console.log('[analysis-loading] runAnalysis:all:before-braking');
             const braking = await classifyBraking(audioInput, decodeOpts);
+            console.log('[analysis-loading] runAnalysis:all:after-braking', {
+              braking,
+            });
             const startup = await classifyStartup(audioInput, decodeOpts);
             const idle = await classifyIdle(audioInput, decodeOpts);
 
             setResults([braking, startup, idle]);
+            console.log('[analysis-loading] runAnalysis:all:after-setResults', {
+              braking,
+              idle,
+              startup,
+            });
           }
+        }
+        else {
+          console.log('[analysis-loading] runAnalysis:no-input');
         }
       }
       catch (error) {
@@ -882,11 +909,17 @@ export function AnalysisLoadingScreen() {
       }
 
       if (!cancelled) {
+        console.log('[analysis-loading] runAnalysis:navigate', {
+          desiredTest,
+        });
         router.replace(
           desiredTest
             ? { pathname: '/analysis-results', params: { desiredTest } }
             : '/analysis-results',
         );
+      }
+      else {
+        console.log('[analysis-loading] runAnalysis:cancelled-before-navigation');
       }
     };
 

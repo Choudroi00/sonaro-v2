@@ -15,7 +15,7 @@ let loadedModel: TensorflowModel | null = null;
 
 export async function loadIdleModel(): Promise<TensorflowModel> {
   if (!loadedModel) {
-    loadedModel = await loadTensorflowModel(MODEL);
+    loadedModel = await loadTensorflowModel(MODEL, []);
   }
   return loadedModel;
 }

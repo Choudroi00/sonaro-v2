@@ -26,5 +26,18 @@ export const useAudioAnalysisStore = create<AudioAnalysisState>(set => ({
   input: null,
   results: [],
   setInput: input => set({ input }),
-  setResults: results => set({ results }),
+  setResults: (results) => {
+    console.log('[audio-analysis-store] setResults', {
+      count: results.length,
+      results: results.map(result => ({
+        label: result.label,
+        model: result.model,
+        probabilities: result.probabilities,
+        rawScores: result.rawScores,
+        score: result.score,
+      })),
+    });
+
+    set({ results });
+  },
 }));
